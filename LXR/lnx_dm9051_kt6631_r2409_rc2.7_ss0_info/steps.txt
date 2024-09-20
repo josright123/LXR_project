@@ -1,0 +1,60 @@
+0. RPI4 (SDCard 32BG)
+   Burn Raspberry OS Linux 6.6.31 (64-bit)
+1. Copy "dm9051_conf.dtbo" from Davicom team
+   to /boot/overlays
+2. Edit /boot/firmware/config.txt
+   > spi on
+   > dtoverlay is dm9051_conf.dtbo
+3. RPI4 connect to DM9051 demo board,
+   > cs
+   > mo
+   > mi
+   > clk
+   > INT
+   > VDD 3.3
+   > Gnd
+4. Download dm9051 driver from LXR (6.6.31)
+   > dm9051.c
+   > dm9051.h
+   > Makefile (Modify is required, Check to Davicom team)
+   Make to generate "dm9051.ko"
+   
+5. Install dynamic driver "dm9051.ko"
+   > sudo insmod dm9051.ko
+   
+   Error found:
+	[158190.371901] dm9051: Unknown symbol __devm_regmap_init_spi (err -2)
+   Modify "dm9051.c" goto step 4. 
+
+   [Analysis]:
+    While work to dynamic driver,
+    __devm_regmap_init_spi is an unknow symbol.
+    We need make it static symbol in the driver dm9051.c
+
+   [Modification]:
+    > Mark as KERNEL_ROADMAP_CONF_H_
+      #undef devm_regmap_init_spi
+      #define devm_regmap_init_spi(dev, config) \
+		__regmap_lockdep_wrapper(__devm_regmap_init_spi_dm, ...
+	> Provide __devm_regmap_init_spi_dm()
+	> Use struct regmap_bus regmap_bus_dm = { ... };
+	> And regmap_spi_write(), regmap_spi_read(), regmap_spi_gather_write().
+    
+ 6. Install dynamic driver "dm9051.ko"
+   > sudo insmod dm9051.ko
+   
+   Error found:
+    55:          0          0          0          0  pinctrl-bcm2835  26 Level     eth1
+    No interrupts
+
+   [Analysis]:
+    Add a polling model
+    
+   [Modification]:
+    Add as below:
+    > struct delayed_work		irq_workp;
+    > void dm9051_irq_delayp(struct work_struct *work) { ... }
+    > schedule_delayed_work(&db->irq_workp, HZ * 1); //in dm9051_open()
+    > INIT_DELAYED_WORK(&db->irq_workp, dm9051_irq_delayp); //in dm9051_prob()
+    > cancel_delayed_work_sync(&db->irq_workp); //in dm9051_stop()
+

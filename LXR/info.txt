@@ -1,0 +1,2 @@
+Release 20240912
+copy KT6631/ to lnx_dm9051_kt6631_r2409_rc2.7_ss0/
